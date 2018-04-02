@@ -2,6 +2,8 @@ import pandas as pd
 import sys
 import re
 import time
+import getopt
+import os.path
 """
 parser = argparse.ArgumentParser(description='Clean Zyxel Anti-spam log')
 parser.add_argument("-i", dest="inputFilename", required=True,
@@ -13,7 +15,7 @@ parser.add_argument("-o", dest="outputFilename", required=True,
 args = parser.parse_args()
 
 """
-   
+
 def parse_df_to_dict( df ):
    """Parse DataFrame to dict
    Keys : email, subject, status, logtime
@@ -27,12 +29,12 @@ def parse_df_to_dict( df ):
       logs['logtime'] = row['logTime']
       dict_list.append(dict(logs))
    return dict_list
-   
+
 def write_csv (myLogs, outputFileName):
    """Convert dict to CSV format
    """
    file = open(outputFileName, "w")
-     
+
    for index in range(len(myLogs)):
       # Convert list to string
       email = ''.join(myLogs[index]['email'])
@@ -45,20 +47,58 @@ def write_csv (myLogs, outputFileName):
       #
       logtime = myLogs[index]['logtime']
       line_str = "'" + email + "','" + subject + "','" + logtime + "','" + status + "'\n"
-      if email and email.endswith(".ch"):
+      if email and email.endswith(".ch") and status == 'MAIL DROP':
+         #file.write(line_str.split(',')[0] + "\n")
          file.write(line_str)
-   file.close() 
+   file.close()
 
-# Set output file name
-output_csv_file = sys.argv[2]
+# definition des variables
+inputfile = ''
+outputfile = ''
+quietMode = False
+argv = sys.argv[1:]
+# recupere les argements passes au script
+try:
+    opts, args = getopt.getopt(argv,"hqi:o:",["ifile=","ofile=","quiet"])
+except getopt.GetoptError:
+    print 'zywall_anti-spam_reader.py -i <inputfile> -o <outputfile>'
+    sys.exit(2)
+for opt, arg in opts:
+    if opt == '-h':
+        print 'zywall_anti-spam_reader.py -i <inputfile> -o <outputfile>'
+        sys.exit()
+    elif opt in ("-q", "--quiet"):
+        quietMode = True
+    elif opt in ("-i", "--ifile"):
+        inputfile = arg
+    elif opt in ("-o", "--ofile"):
+        outputfile = arg
 
+# check si les noms de fichiers d entree et de sortie ne soient pas vide
+if inputfile =='' or outputfile == '':
+    print 'zywall_anti-spam_reader.py -i <inputfile> -o <outputfile>'
+    sys.exit()
+
+# check si le fichier d entree existe
+try:
+    os.path.isfile(inputfile)
+
+except:
+    print("Fichier source introuvable !")
+    sys.exit(0)
+
+if quietMode is not True:
+    sys.stdout.write("\r" + "Processing ... ")
+    sys.stdout.flush()
 # Set fields to use from CSV file
 fields = ['msg', 'note', 'logTime']
 
-# Extract DataFrame from CSV file 
-df = pd.read_csv(sys.argv[1], usecols=fields)
+# Extract DataFrame from input file
+df = pd.read_csv(inputfile, usecols=fields)
 
 # Convert Dataframe to dict
 myLogs=parse_df_to_dict( df )
 
-write_csv (myLogs, output_csv_file)
+write_csv (myLogs, outputfile)
+if quietMode is not True:
+    sys.stdout.write("\r" + "Complete successfully !\n")
